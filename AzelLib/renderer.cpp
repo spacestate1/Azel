@@ -585,7 +585,7 @@ void renderLayerGPU(s_layerData& layerData, u32 textureWidth, u32 textureHeight,
         NBGData.BGFXFB = bgfx::createFrameBuffer(textureWidth, textureHeight, bgfx::TextureFormat::BGRA8, BGFX_TEXTURE_RT | tsFlags);
         NBGData.BGFXTexture = bgfx::getTexture(NBGData.BGFXFB);
 
-        NBGData.bgfx_vdp2_planeDataBuffer = bgfx::createTexture2D(16, 16, 0, 0, bgfx::TextureFormat::R32U);
+        NBGData.bgfx_vdp2_planeDataBuffer = bgfx::createTexture2D(16, 1, false, 1, bgfx::TextureFormat::RGBA8);
 
         NBGData.m_currentWidth = textureWidth;
         NBGData.m_currentHeight = textureHeight;
@@ -600,6 +600,19 @@ void renderLayerGPU(s_layerData& layerData, u32 textureWidth, u32 textureHeight,
         static bgfx::UniformHandle texID_VDP2_CRAM = BGFX_INVALID_HANDLE;
         static bgfx::VertexLayout ms_layout;
         static bgfx::UniformHandle planeDataBuffer = BGFX_INVALID_HANDLE;
+        // Per-parameter uniforms for GLSL 150 / SPIRV compatibility
+        static bgfx::UniformHandle u_CHSZ = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_CHCN = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_PNB = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_CNSM = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_CAOS = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_PLSZ = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_SCN = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_planeOffsets = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_scrollX = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_scrollY = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_lineScrollEA = BGFX_INVALID_HANDLE;
+        static bgfx::UniformHandle u_outputHeight = BGFX_INVALID_HANDLE;
 
         static bool initialized = false;
         if (!initialized)
@@ -628,6 +641,18 @@ void renderLayerGPU(s_layerData& layerData, u32 textureWidth, u32 textureHeight,
             texID_VDP2_RAM = bgfx::createUniform("s_VDP2_RAM", bgfx::UniformType::Sampler);
             texID_VDP2_CRAM = bgfx::createUniform("s_VDP2_CRAM", bgfx::UniformType::Sampler);
             planeDataBuffer = bgfx::createUniform("s_planeConfig", bgfx::UniformType::Sampler);
+            u_CHSZ = bgfx::createUniform("CHSZ", bgfx::UniformType::Vec4);
+            u_CHCN = bgfx::createUniform("CHCN", bgfx::UniformType::Vec4);
+            u_PNB = bgfx::createUniform("PNB", bgfx::UniformType::Vec4);
+            u_CNSM = bgfx::createUniform("CNSM", bgfx::UniformType::Vec4);
+            u_CAOS = bgfx::createUniform("CAOS", bgfx::UniformType::Vec4);
+            u_PLSZ = bgfx::createUniform("PLSZ", bgfx::UniformType::Vec4);
+            u_SCN = bgfx::createUniform("SCN", bgfx::UniformType::Vec4);
+            u_planeOffsets = bgfx::createUniform("planeOffsets", bgfx::UniformType::Vec4, 1);
+            u_scrollX = bgfx::createUniform("scrollX", bgfx::UniformType::Vec4);
+            u_scrollY = bgfx::createUniform("scrollY", bgfx::UniformType::Vec4);
+            u_lineScrollEA = bgfx::createUniform("lineScrollEA", bgfx::UniformType::Vec4);
+            u_outputHeight = bgfx::createUniform("outputHeight", bgfx::UniformType::Vec4);
 
             initialized = true;
         }
@@ -641,6 +666,38 @@ void renderLayerGPU(s_layerData& layerData, u32 textureWidth, u32 textureHeight,
         bgfx::setViewClear(NBGData.viewId, BGFX_CLEAR_COLOR);
 
         bgfx::updateTexture2D(NBGData.bgfx_vdp2_planeDataBuffer, 0, 0, 0, 0, sizeof(layerData)/4, 1, bgfx::copy(&layerData, sizeof(layerData)));
+
+        // Pass layer parameters as individual uniforms (GLSL 150 can't do integer textures)
+        const float v_CHSZ[4] = { (float)layerData.CHSZ, 0.0f, 0.0f, 0.0f };
+        const float v_CHCN[4] = { (float)layerData.CHCN, 0.0f, 0.0f, 0.0f };
+        const float v_PNB[4]  = { (float)layerData.PNB,  0.0f, 0.0f, 0.0f };
+        const float v_CNSM[4] = { (float)layerData.CNSM, 0.0f, 0.0f, 0.0f };
+        const float v_CAOS[4] = { (float)layerData.CAOS, 0.0f, 0.0f, 0.0f };
+        const float v_PLSZ[4] = { (float)layerData.PLSZ, 0.0f, 0.0f, 0.0f };
+        const float v_SCN[4]  = { (float)layerData.SCN,  0.0f, 0.0f, 0.0f };
+        const float v_planeOffsets[4] = {
+            (float)layerData.planeOffsets[0],
+            (float)layerData.planeOffsets[1],
+            (float)layerData.planeOffsets[2],
+            (float)layerData.planeOffsets[3],
+        };
+        const float v_scrollX[4] = { (float)layerData.scrollX, 0.0f, 0.0f, 0.0f };
+        const float v_scrollY[4] = { (float)layerData.scrollY, 0.0f, 0.0f, 0.0f };
+        const float v_lineScrollEA[4] = { (float)layerData.lineScrollEA, 0.0f, 0.0f, 0.0f };
+        const float v_outputHeight[4] = { (float)textureHeight, 0.0f, 0.0f, 0.0f };
+
+        bgfx::setUniform(u_CHSZ, v_CHSZ);
+        bgfx::setUniform(u_CHCN, v_CHCN);
+        bgfx::setUniform(u_PNB, v_PNB);
+        bgfx::setUniform(u_CNSM, v_CNSM);
+        bgfx::setUniform(u_CAOS, v_CAOS);
+        bgfx::setUniform(u_PLSZ, v_PLSZ);
+        bgfx::setUniform(u_SCN, v_SCN);
+        bgfx::setUniform(u_planeOffsets, v_planeOffsets);
+        bgfx::setUniform(u_scrollX, v_scrollX);
+        bgfx::setUniform(u_scrollY, v_scrollY);
+        bgfx::setUniform(u_lineScrollEA, v_lineScrollEA);
+        bgfx::setUniform(u_outputHeight, v_outputHeight);
 
         bgfx::setTexture(0, texID_VDP2_RAM, bgfx_vdp2_ram_texture);
         bgfx::setTexture(1, texID_VDP2_CRAM, bgfx_vdp2_cram_texture);
