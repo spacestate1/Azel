@@ -943,11 +943,51 @@ void copyFontToVdp2()
 
 void setFontDefaultColor(u32 paletteIndex, u16 color0, u16 color1)
 {
+    // Font palettes are at CRAM offset 0xE00 (vdp2FontPalettes)
+    // Each palette is 16 colors * 2 bytes = 32 bytes
+    // color0 is the main text color (center/body)
+    // color1 is the border/shadow color (outline)
+    u8* paletteBase = vdp2FontPalettes + paletteIndex * 32;
 
+    // Set all 16 colors
+    // Color 0: transparent
+    // Colors 1-7: border/outline color
+    // Colors 8-15: main text color
+    for (int i = 0; i < 16; i++)
+    {
+        u16 color;
+        if (i == 0)
+        {
+            // Color 0 is transparent
+            color = 0x0000;
+        }
+        else if (i <= 7)
+        {
+            // Colors 1-7: border/outline
+            color = color1;
+        }
+        else
+        {
+            // Colors 8-15: main text body
+            color = color0;
+        }
+
+        // Write color in big-endian format
+        paletteBase[i * 2] = (color >> 8) & 0xFF;
+        paletteBase[i * 2 + 1] = color & 0xFF;
+    }
 }
 
 void setFontDefaultColors()
 {
+    // First copy the font data to CRAM
+    copyFontToVdp2();
+
+    // Then set up the palette colors (this overwrites specific colors in the palettes)
+    // Palette 0: Grey text (0x4210) with black border (0x0000)
+    setFontDefaultColor(0, 0x4210, 0x0000);
+
+    // Palettes 7-14: Various colored text with gray shadow (0x8421)
     setFontDefaultColor(7, 0xF03C, 0x8421);
     setFontDefaultColor(8, 0xEB47, 0x8421);
     setFontDefaultColor(9, 0xA368, 0x8421);
@@ -957,7 +997,8 @@ void setFontDefaultColors()
     setFontDefaultColor(13, 0x875A, 0x8421);
     setFontDefaultColor(14, 0xB18C, 0x8421);
 
-    copyFontToVdp2();
+    // Palette 15: Grey text (0x4210) with black border (0x0000)
+    setFontDefaultColor(15, 0x4210, 0x0000);
 }
 
 std::array<sVdpVar1, 14> vdpVar1;
@@ -1507,7 +1548,7 @@ void moveVdp2TextCursor(s_stringStatusQuery* vars)
 }
 
 u32 printVdp2StringTable[10] = {
-    12, 13, 7, 8, 9, 10, 11, 13, 7, 14
+    0, 13, 7, 8, 9, 10, 11, 13, 7, 14  // Index 0 uses palette 0 for default white text
 };
 
 void printVdp2StringNewLine(s_stringStatusQuery* vars)
@@ -1614,6 +1655,7 @@ s32 computeStringLength(const char* pString, s32 r5)
         }
         r14++;
     };
+    return r14;
 }
 
 void clearBlueBox(s32 x, s32 y, s32 width, s32 height)
