@@ -1109,11 +1109,14 @@ void PolyDrawGL(s_vdp1Command* vdp1EA)
     u32 finalColor;
     if (CMDCOLR & 0x8000)
     {
+        // Direct RGB555 color (MSB set)
         finalColor = 0xFF000000 | (((CMDCOLR & 0x1F) << 3) | ((CMDCOLR & 0x03E0) << 6) | ((CMDCOLR & 0x7C00) << 9));
     }
     else
     {
-        finalColor = 0xFF0000FF;
+        // Palette color - look up from Color RAM
+        u16 color = getVdp2CramU16(CMDCOLR * 2);
+        finalColor = 0xFF000000 | (((color & 0x1F) << 3) | ((color & 0x03E0) << 6) | ((color & 0x7C00) << 9));
     }
 
     float quadDepth = 0.9;
@@ -1198,11 +1201,14 @@ void PolyLineDrawGL(s_vdp1Command* vdp1EA)
     u32 finalColor;
     if (CMDCOLR & 0x8000)
     {
+        // Direct RGB555 color (MSB set)
         finalColor = 0xFF000000 | (((CMDCOLR & 0x1F) << 3) | ((CMDCOLR & 0x03E0) << 6) | ((CMDCOLR & 0x7C00) << 9));
     }
     else
     {
-        finalColor = 0xFF0000FF;
+        // Palette color - look up from Color RAM
+        u16 color = getVdp2CramU16(CMDCOLR * 2);
+        finalColor = 0xFF000000 | (((color & 0x1F) << 3) | ((color & 0x03E0) << 6) | ((color & 0x7C00) << 9));
     }
 
     drawLineGL(CMDXA + localCoordiantesX, CMDYA + localCoordiantesY, CMDXB + localCoordiantesX, CMDYB + localCoordiantesY, finalColor);

@@ -123,11 +123,10 @@ u32* decodeVdp1Quad(s_quad quad, u16& textureWidth, u16& textureHeight)
                         }
                         else if (temp != 0x0000)
                         {
-                            //Vdp1ProcessSpritePixel(Vdp2Regs->SPCTL & 0xF, &temp, &shadow, &priority, &colorcl);
-                            //if( shadow != 0 ) 
-                            {
-                                *texture++ = 0x00;
-                            }
+                            // Palette color - look up from Color RAM
+                            u16 color = getVdp2CramU16(temp * 2);
+                            u32 finalColor = 0xFF000000 | (((color & 0x1F) << 3) | ((color & 0x03E0) << 6) | ((color & 0x7C00) << 9));
+                            *texture++ = finalColor;
                             /*else
                             {
                             priority = ((u8 *)&Vdp2Regs->PRISA)[priority]&0x7;
