@@ -152,7 +152,12 @@ void azelSdl2_Init()
 #endif
 
     imguiCreate();
+#ifdef _WIN32
     ImGui_ImplSDL2_InitForD3D(gWindowBGFX);
+#else
+    // Non-Windows platforms use Vulkan (or OpenGL) via bgfx
+    ImGui_ImplSDL2_InitForVulkan(gWindowBGFX);
+#endif
 }
 
 bgfx::TextureHandle getTextureForLayerBgfx(eLayers layerIndex)
@@ -1571,10 +1576,12 @@ void renderTexturedQuadBgfx(bgfx::ViewId outputView, bgfx::TextureHandle sourceT
         | BGFX_STATE_WRITE_RGB
         | BGFX_STATE_WRITE_A
         | BGFX_STATE_DEPTH_TEST_ALWAYS
+        | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA)
     );
 
     bgfx::setViewRect(outputView, 0, 0, internalResolution[0], internalResolution[1]);
-    bgfx::setViewClear(outputView, BGFX_CLEAR_COLOR);
+    // Don't clear per-layer; the composite view is cleared once before all layers
+    // bgfx::setViewClear(outputView, BGFX_CLEAR_COLOR);
 
     bgfx::setTexture(0, inputTexture, sourceTexture);
 
@@ -1608,8 +1615,7 @@ bool azelSdl2_EndFrame()
         outputResolutionWidth = 352;
         break;
     case 3:
-        // TODO: fix
-        //outputResolutionWidth = 704; //this should be correct, but breaks the title screen
+        // VDP2 hi-res mode is 704 pixels, but VDP1/3D hardcodes 352 everywhere
         outputResolutionWidth = 352;
         break;
     default:
@@ -1617,8 +1623,9 @@ bool azelSdl2_EndFrame()
         break;
     }
 
-    u32 vdp2ResolutionWidth = outputResolutionWidth;
-    u32 vdp2ResolutionHeight = outputResolutionHeight;
+    // VDP2 may render at higher resolution than VDP1 (hi-res/interlace modes)
+    u32 vdp2ResolutionWidth = (HRESO == 3) ? 704 : outputResolutionWidth;
+    u32 vdp2ResolutionHeight = (LSMD >= 2) ? (outputResolutionHeight * 2) : outputResolutionHeight;
 
     {
         vdp1TextureWidth = outputResolutionWidth;
@@ -1731,7 +1738,11 @@ bool azelSdl2_EndFrame()
         float G = ((backScreenColor & 0x03E0) << 6) >> 8;
         float B = ((backScreenColor & 0x7C00) << 9) >> 16;
 
-        // TODOL set the bgfx back color to this color
+        // Set the composite view clear color to the Saturn back-screen color
+        u32 clearColor = (u32(R) << 24) | (u32(G) << 16) | (u32(B) << 8) | 0xFF;
+        bgfx::setViewRect(CompositeView, 0, 0, internalResolution[0], internalResolution[1]);
+        bgfx::setViewClear(CompositeView, BGFX_CLEAR_COLOR, clearColor);
+        bgfx::touch(CompositeView);
 
         for (int priorityIndex = 0; priorityIndex <= 7; priorityIndex++)
         {

@@ -289,6 +289,22 @@ glm::mat4 MatrixToGLM(const sMatrix4x3& inputMatrix)
     return tempObjectMatrix;
 }
 
+// OpenGL's Y-up clip space requires inverted culling compared to DirectX's Y-down.
+// These helpers swap CW/CCW when running on OpenGL so geometry faces the right way.
+static uint64_t getCullStateCW()
+{
+    if (bgfx::getRendererType() == bgfx::RendererType::OpenGL)
+        return BGFX_STATE_CULL_CCW;
+    return BGFX_STATE_CULL_CW;
+}
+
+static uint64_t getCullStateCCW()
+{
+    if (bgfx::getRendererType() == bgfx::RendererType::OpenGL)
+        return BGFX_STATE_CULL_CW;
+    return BGFX_STATE_CULL_CCW;
+}
+
 void drawObject(s_objectToRender* pObject, const glm::mat4& projectionMatrix)
 {
     pObject->m_pObject->generateVertexBuffer();
@@ -318,7 +334,7 @@ void drawObject(s_objectToRender* pObject, const glm::mat4& projectionMatrix)
         | BGFX_STATE_WRITE_RGB
         | BGFX_STATE_WRITE_A
         | BGFX_STATE_WRITE_Z
-        | BGFX_STATE_CULL_CCW
+        | getCullStateCCW()
         | BGFX_STATE_MSAA
         | BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_INV_SRC_ALPHA)
         ;
@@ -393,6 +409,12 @@ glm::mat4 getProjectionMatrix()
     testProj[2][2] = (zFar + zNear) / (zFar - zNear);
     testProj[2][3] = 1.f;
     testProj[3][2] = -2 * (zFar * zNear) / (zFar - zNear);
+
+    // OpenGL has Y-up clip space while DirectX has Y-down; flip Y in projection
+    if (bgfx::getRendererType() == bgfx::RendererType::OpenGL)
+    {
+        testProj[1][1] = -testProj[1][1];
+    }
 
 #endif
     return testProj;
@@ -733,7 +755,7 @@ void NormalSpriteDrawGL(s_vdp1Command* vdp1EA)
                         | BGFX_STATE_WRITE_A
                         | BGFX_STATE_WRITE_Z
                         | BGFX_STATE_DEPTH_TEST_LEQUAL
-                        | BGFX_STATE_CULL_CW
+                        | getCullStateCW()
                         | BGFX_STATE_MSAA
                     );
                     bgfx::submit(vdp1_gpuView, Get2dUIShaderBGFX());
@@ -927,7 +949,7 @@ void ScaledSpriteDrawGL(s_vdp1Command* vdp1EA)
                         | BGFX_STATE_WRITE_A
                         | BGFX_STATE_WRITE_Z
                         | BGFX_STATE_DEPTH_TEST_LEQUAL
-                        | BGFX_STATE_CULL_CW
+                        | getCullStateCW()
                         | BGFX_STATE_MSAA
                     );
                     bgfx::submit(vdp1_gpuView, Get2dUIShaderBGFX());
@@ -976,7 +998,7 @@ void drawQuadGL(const sDebugQuad& quad)
             | BGFX_STATE_WRITE_A
             | BGFX_STATE_WRITE_Z
             | BGFX_STATE_DEPTH_TEST_LEQUAL
-            | BGFX_STATE_CULL_CW
+            | getCullStateCW()
             | BGFX_STATE_MSAA
         );
 
@@ -1021,7 +1043,7 @@ void drawLineGL(sVec3_FP vertice1, sVec3_FP vertice2, sFColor color)
             | BGFX_STATE_WRITE_A
             | BGFX_STATE_WRITE_Z
             | BGFX_STATE_DEPTH_TEST_LEQUAL
-            | BGFX_STATE_CULL_CW
+            | getCullStateCW()
             | BGFX_STATE_MSAA
             | BGFX_STATE_PT_LINES
         );
@@ -1080,7 +1102,7 @@ void drawLineGL(s16 X1, s16 Y1, s16 X2, s16 Y2, u32 finalColor)
             | BGFX_STATE_WRITE_A
             | BGFX_STATE_WRITE_Z
             | BGFX_STATE_DEPTH_TEST_LEQUAL
-            | BGFX_STATE_CULL_CW
+            | getCullStateCW()
             | BGFX_STATE_MSAA
             | BGFX_STATE_PT_LINES
         );
@@ -1170,7 +1192,7 @@ void PolyDrawGL(s_vdp1Command* vdp1EA)
             | BGFX_STATE_WRITE_A
             | BGFX_STATE_WRITE_Z
             | BGFX_STATE_DEPTH_TEST_LEQUAL
-            | BGFX_STATE_CULL_CW
+            | getCullStateCW()
             | BGFX_STATE_MSAA
         );
 
