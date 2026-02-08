@@ -62,11 +62,27 @@ static void s_battlePrgTask_Update(s_battlePrgTask* pThis)
         // Select battle module
         if (graphicEngineStatus.m4514.m0_inputDevices[0].m0_current.mC_newButtonDown2 & 0x20)
         {
-            Unimplemented();
+            do {
+                pBattleManager->mA_pendingBattleOverlayId++;
+                if (pBattleManager->mA_pendingBattleOverlayId >= 0x1B)
+                {
+                    pBattleManager->mA_pendingBattleOverlayId = 0;
+                }
+            } while (gCommonFile->battleActivationList[pBattleManager->mA_pendingBattleOverlayId] == 0);
+            pBattleManager->m6_subBattleId = 0;
+            playSystemSoundEffect(10);
         }
         if(graphicEngineStatus.m4514.m0_inputDevices[0].m0_current.mC_newButtonDown2 & 0x10)
         {
-            Unimplemented();
+            do {
+                pBattleManager->mA_pendingBattleOverlayId--;
+                if (pBattleManager->mA_pendingBattleOverlayId < 0)
+                {
+                    pBattleManager->mA_pendingBattleOverlayId = 0x1A;
+                }
+            } while (gCommonFile->battleActivationList[pBattleManager->mA_pendingBattleOverlayId] == 0);
+            pBattleManager->m6_subBattleId = 0;
+            playSystemSoundEffect(10);
         }
     }
     else
